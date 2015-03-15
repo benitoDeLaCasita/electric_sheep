@@ -4,14 +4,9 @@ module ElectricSheep
   module Transports
     class S3
       include Transport
+      include Aws
 
       register as: "s3"
-
-      option :access_key_id, required: true
-      option :secret_key, required: true, secret: true
-      option :region
-
-      DEFAULT_REGION='us-east-1'
 
       def remote_interactor
         @remote_interactor ||= S3Interactor.new(
@@ -48,6 +43,7 @@ module ElectricSheep
       end
 
       class S3Interactor
+        include Helpers::Aws
 
         def initialize(access_key_id, secret_key, region)
           @access_key_id = access_key_id
@@ -138,14 +134,8 @@ module ElectricSheep
 
         def upload_options(file)
           {}.tap do |opts|
-            if file.size > 10.megabytes
-              # Try to use small chunks to reduce memory consumption
-              chunk=[5, 10, 20, 30, 40, 50, 100, 200, 300, 500].find do |size|
-                # S3 hard-limit: 10000 chunks
-                size.megabytes * 10000 >= file.size
-              end
-              opts[:multipart_chunk_size]=chunk.megabytes
-            end
+            chunk = multipart_chunk_size(file)
+            opts[:multipart_chunk_size]=chunk if chunk
           end
         end
 
